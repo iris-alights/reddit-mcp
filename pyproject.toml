@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "reddit-mcp"
+name = "reddit-mcp-noapi"
 version = "0.1.0"
 description = "MCP server for Reddit - read and write without API keys"
 readme = "README.md"

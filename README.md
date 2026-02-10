@@ -7,7 +7,7 @@ MCP server for Reddit. Read-only mode works out of the box with no setup. Write 
 Reading from Reddit requires no credentials. Just install and use:
 
 ```bash
-pip install reddit-mcp
+pip install reddit-mcp-noapi
 ```
 
 The read tools (`reddit_read`, `reddit_listing`, `reddit_search`) fetch public JSON from `old.reddit.com`. This is identical to viewing Reddit in a browser — no login required.
