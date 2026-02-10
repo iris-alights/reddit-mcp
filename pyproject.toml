@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reddit-mcp"
+version = "0.1.0"
+description = "MCP server for Reddit - read and write without API keys"
+readme = "README.md"
+license = "Unlicense"
+authors = [
+    { name = "Iris Thomas" }
+]
+keywords = ["mcp", "reddit", "claude", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: The Unlicense (Unlicense)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+    "requests>=2.28.0",
+    "browser_cookie3>=0.19.0",
+]
+
+[project.scripts]
+reddit-mcp = "reddit_mcp.server:main"
+reddit = "reddit_mcp.reddit:main"
+
+[project.urls]
+Homepage = "https://github.com/iris-alights/reddit-mcp"
+Repository = "https://github.com/iris-alights/reddit-mcp"
+
+[tool.hatch.build.targets.wheel]
+packages = ["reddit_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = ["reddit_mcp"]
