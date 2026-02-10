@@ -740,7 +740,7 @@ wheels = [
 ]
 
 [[package]]
-name = "reddit-mcp"
+name = "reddit-mcp-noapi"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

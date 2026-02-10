@@ -440,13 +440,20 @@ class RedditClient:
             things = result["json"].get("data", {}).get("things", [])
             if things:
                 d = things[0].get("data", {})
+                comment_id = d.get("id") or d.get("name")
+                # Permalink not in response directly; parse from HTML content
+                permalink = None
+                content = d.get("content", "")
+                match = re.search(r'data-permalink="([^"]+)"', content)
+                if match:
+                    permalink = match.group(1)
                 return {
                     "success": True,
-                    "id": d.get("name"),
-                    "permalink": d.get("permalink"),
+                    "id": comment_id,
+                    "permalink": f"https://reddit.com{permalink}" if permalink else None,
                 }
 
-        return {"success": True}
+        return {"success": True, "id": None, "permalink": None}
 
     def submit(self, subreddit: str, title: str, text: Optional[str] = None,
                url: Optional[str] = None, flair_id: Optional[str] = None) -> dict:
@@ -631,13 +638,20 @@ class RedditClient:
             things = result["json"].get("data", {}).get("things", [])
             if things:
                 d = things[0].get("data", {})
+                comment_id = d.get("id") or d.get("name")
+                # Permalink not in response directly; parse from HTML content
+                permalink = None
+                content = d.get("content", "")
+                match = re.search(r'data-permalink="([^"]+)"', content)
+                if match:
+                    permalink = match.group(1)
                 return {
                     "success": True,
-                    "id": d.get("name"),
-                    "permalink": d.get("permalink"),
+                    "id": comment_id,
+                    "permalink": f"https://reddit.com{permalink}" if permalink else None,
                 }
 
-        return {"success": True}
+        return {"success": True, "id": None, "permalink": None}
 
     async def async_submit(self, subreddit: str, title: str, text: Optional[str] = None,
                            url: Optional[str] = None, flair_id: Optional[str] = None) -> dict:

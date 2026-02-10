@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "reddit-mcp-noapi"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server for Reddit - read and write without API keys"
 readme = "README.md"
 license = "Unlicense"
