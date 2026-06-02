@@ -27,7 +27,7 @@ BASE_URL = "https://old.reddit.com"
 
 # Headers to look like a browser
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
     "Accept": "application/json, text/javascript, */*; q=0.01",
     "Accept-Language": "en-US,en;q=0.5",
     "X-Requested-With": "XMLHttpRequest",
@@ -36,7 +36,7 @@ HEADERS = {
 }
 
 
-def save_session(cookies: dict, username: str, browser: str = None):
+def save_session(cookies: dict, username: str, browser: str | None = None):
     """Save session to disk."""
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
     data = {
@@ -126,7 +126,14 @@ class RedditClient:
         return True
 
     # =========================================================================
-    # READ OPERATIONS (no auth required)
+    # READ OPERATIONS
+    #
+    # As of 2026-06, Reddit returns HTTP 403 on unauthenticated *.json endpoints
+    # (old.reddit.com and www.reddit.com alike). The session cookie is now
+    # required for reads as well as writes, so each read ensures we're logged in
+    # first. _ensure_logged_in() loads the saved cookie onto self.session; even
+    # if modhash retrieval fails, the cookie is attached, which is what unlocks
+    # the JSON endpoints.
     # =========================================================================
 
     def _normalize_url(self, url: str) -> str:
@@ -162,6 +169,7 @@ class RedditClient:
         if not url.endswith('.json'):
             url += '.json'
 
+        self._ensure_logged_in()
         resp = self.session.get(url)
         if resp.status_code != 200:
             return {"success": False, "error": f"HTTP {resp.status_code}"}
@@ -246,6 +254,7 @@ class RedditClient:
         fetch_count = skip + limit
         url = f"{BASE_URL}/r/{subreddit}/{sort}.json?limit={fetch_count}"
 
+        self._ensure_logged_in()
         resp = self.session.get(url)
         if resp.status_code != 200:
             return {"success": False, "error": f"HTTP {resp.status_code}"}
@@ -306,6 +315,7 @@ class RedditClient:
         }
         url = f"{BASE_URL}/r/{subreddit}/search.json?{urlencode(params)}"
 
+        self._ensure_logged_in()
         resp = self.session.get(url)
         if resp.status_code != 200:
             return {"success": False, "error": f"HTTP {resp.status_code}"}
@@ -405,13 +415,19 @@ class RedditClient:
         """Post a comment.
 
         Args:
-            thing_id: The fullname to reply to (t3_xxx for post, t1_xxx for comment)
+            thing_id: The fullname to reply to (t3_xxx for post, t1_xxx for comment).
+                      Bare IDs without a type prefix are assumed to be comments (t1_).
             text: Comment text (markdown)
             check_existing: If True, check if we already replied
 
         Returns:
             Dict with success status and comment info
         """
+        # Auto-prefix bare IDs (assume comment/t1_ if no Reddit fullname prefix)
+        import re
+        if thing_id and not re.match(r'^t\d_', thing_id):
+            thing_id = f"t1_{thing_id}"
+
         if not self._ensure_logged_in():
             return {"success": False, "error": "Not logged in"}
 
