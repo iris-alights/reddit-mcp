@@ -10,19 +10,17 @@ from typing import Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import Tool, TextContent, ListToolsResult, CallToolResult
 
 from .reddit import RedditClient
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("reddit-mcp")
 
-# Initialize server and client
-server = Server("reddit-mcp")
+# Initialize client
 client = RedditClient()
 
 
-@server.list_tools()
 async def list_tools() -> list[Tool]:
     """List available Reddit tools."""
     return [
@@ -176,6 +174,14 @@ async def list_tools() -> list[Tool]:
                     "url": {
                         "type": "string",
                         "description": "Link URL (for link posts, mutually exclusive with text)"
+                    },
+                    "flair_id": {
+                        "type": "string",
+                        "description": "Optional post flair template ID (UUID)"
+                    },
+                    "flair_text": {
+                        "type": "string",
+                        "description": "Optional post flair text"
                     }
                 },
                 "required": ["subreddit", "title"]
@@ -217,75 +223,98 @@ async def list_tools() -> list[Tool]:
     ]
 
 
-@server.call_tool()
+async def _dispatch_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Execute a Reddit tool and return the dictionary result."""
+    if name == "reddit_read":
+        return client.read_post(
+            arguments["url"],
+            depth=arguments.get("depth", 1),
+            max_comments=arguments.get("max_comments", 25)
+        )
+
+    elif name == "reddit_listing":
+        return client.read_listing(
+            arguments["subreddit"],
+            limit=arguments.get("limit", 15),
+            skip=arguments.get("skip", 0),
+            sort=arguments.get("sort", "hot")
+        )
+
+    elif name == "reddit_search":
+        return client.search(
+            arguments["subreddit"],
+            arguments["query"],
+            limit=arguments.get("limit", 15),
+            sort=arguments.get("sort", "relevance"),
+            time_filter=arguments.get("time_filter", "all")
+        )
+
+    elif name == "reddit_inbox":
+        return await client.async_inbox(
+            limit=arguments.get("limit", 25),
+            unread_only=arguments.get("unread_only", False)
+        )
+
+    elif name == "reddit_comment":
+        return await client.async_comment(
+            arguments["thing_id"],
+            arguments["text"],
+            check_existing=arguments.get("check_existing", True)
+        )
+
+    elif name == "reddit_submit":
+        return await client.async_submit(
+            arguments["subreddit"],
+            arguments["title"],
+            text=arguments.get("text"),
+            url=arguments.get("url"),
+            flair_id=arguments.get("flair_id"),
+            flair_text=arguments.get("flair_text")
+        )
+
+    elif name == "reddit_vote":
+        return await client.async_vote(
+            arguments["thing_id"],
+            arguments["direction"]
+        )
+
+    elif name == "reddit_delete":
+        return await client.async_delete(arguments["thing_id"])
+
+    else:
+        return {"success": False, "error": f"Unknown tool: {name}"}
+
+
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Execute a Reddit tool."""
     try:
-        if name == "reddit_read":
-            result = client.read_post(
-                arguments["url"],
-                depth=arguments.get("depth", 1),
-                max_comments=arguments.get("max_comments", 25)
-            )
-
-        elif name == "reddit_listing":
-            result = client.read_listing(
-                arguments["subreddit"],
-                limit=arguments.get("limit", 15),
-                skip=arguments.get("skip", 0),
-                sort=arguments.get("sort", "hot")
-            )
-
-        elif name == "reddit_search":
-            result = client.search(
-                arguments["subreddit"],
-                arguments["query"],
-                limit=arguments.get("limit", 15),
-                sort=arguments.get("sort", "relevance"),
-                time_filter=arguments.get("time_filter", "all")
-            )
-
-        elif name == "reddit_inbox":
-            result = await client.async_inbox(
-                limit=arguments.get("limit", 25),
-                unread_only=arguments.get("unread_only", False)
-            )
-
-        elif name == "reddit_comment":
-            result = await client.async_comment(
-                arguments["thing_id"],
-                arguments["text"],
-                check_existing=arguments.get("check_existing", True)
-            )
-
-        elif name == "reddit_submit":
-            result = await client.async_submit(
-                arguments["subreddit"],
-                arguments["title"],
-                text=arguments.get("text"),
-                url=arguments.get("url")
-            )
-
-        elif name == "reddit_vote":
-            result = await client.async_vote(
-                arguments["thing_id"],
-                arguments["direction"]
-            )
-
-        elif name == "reddit_delete":
-            result = await client.async_delete(arguments["thing_id"])
-
-        else:
-            result = {"success": False, "error": f"Unknown tool: {name}"}
-
+        result = await _dispatch_tool(name, arguments)
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
     except Exception as e:
         logger.exception(f"Error in {name}")
         return [TextContent(
             type="text",
             text=json.dumps({"success": False, "error": str(e)}, indent=2)
         )]
+
+
+# Compatibility layer: Support both MCP 1.x and MCP 2.x
+if hasattr(Server, "list_tools"):
+    # MCP 1.x API
+    server = Server("reddit-mcp")
+    server.list_tools()(list_tools)
+    server.call_tool()(call_tool)
+else:
+    # MCP 2.x API
+    async def _on_list_tools(context, params) -> ListToolsResult:
+        tools = await list_tools()
+        return ListToolsResult(tools=tools)
+
+    async def _on_call_tool(context, params) -> CallToolResult:
+        content = await call_tool(params.name, params.arguments or {})
+        return CallToolResult(content=content)
+
+    server = Server("reddit-mcp", on_list_tools=_on_list_tools, on_call_tool=_on_call_tool)
 
 
 async def _run():

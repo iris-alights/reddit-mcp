@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 
-import requests
+import httpx
 
 # Session file location (configurable via env)
 SESSION_DIR = Path(os.environ.get("REDDIT_SESSION_DIR", Path.home() / ".config" / "reddit-mcp"))
@@ -27,7 +27,7 @@ BASE_URL = "https://old.reddit.com"
 
 # Headers to look like a browser
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json, text/javascript, */*; q=0.01",
     "Accept-Language": "en-US,en;q=0.5",
     "X-Requested-With": "XMLHttpRequest",
@@ -68,7 +68,7 @@ class RedditClient:
     """Reddit client for both reading and writing."""
 
     def __init__(self):
-        self.session = requests.Session()
+        self.session = httpx.Client(headers=HEADERS, follow_redirects=True, timeout=30.0)
         self.session.headers.update(HEADERS)
         self.modhash: Optional[str] = None
         self.username: Optional[str] = None
@@ -472,7 +472,8 @@ class RedditClient:
         return {"success": True, "id": None, "permalink": None}
 
     def submit(self, subreddit: str, title: str, text: Optional[str] = None,
-               url: Optional[str] = None, flair_id: Optional[str] = None) -> dict:
+               url: Optional[str] = None, flair_id: Optional[str] = None,
+               flair_text: Optional[str] = None) -> dict:
         """Submit a new post.
 
         Args:
@@ -506,6 +507,8 @@ class RedditClient:
             data["url"] = url
         if flair_id:
             data["flair_id"] = flair_id
+        if flair_text:
+            data["flair_text"] = flair_text
 
         resp = self.session.post(f"{BASE_URL}/api/submit", data=data)
 
@@ -670,7 +673,8 @@ class RedditClient:
         return {"success": True, "id": None, "permalink": None}
 
     async def async_submit(self, subreddit: str, title: str, text: Optional[str] = None,
-                           url: Optional[str] = None, flair_id: Optional[str] = None) -> dict:
+                           url: Optional[str] = None, flair_id: Optional[str] = None,
+                           flair_text: Optional[str] = None) -> dict:
         """Submit a new post (async version)."""
         if not await self._async_ensure_logged_in():
             return {"success": False, "error": "Not logged in"}
@@ -693,6 +697,8 @@ class RedditClient:
             data["url"] = url
         if flair_id:
             data["flair_id"] = flair_id
+        if flair_text:
+            data["flair_text"] = flair_text
 
         resp = self.session.post(f"{BASE_URL}/api/submit", data=data)
 
@@ -855,7 +861,7 @@ def _try_extract_session(cj) -> Optional[dict]:
         return None
 
     # Got a session cookie - verify it works
-    session = requests.Session()
+    session = httpx.Client(headers=HEADERS, follow_redirects=True, timeout=30.0)
     session.headers.update(HEADERS)
     session.cookies.set('reddit_session', cookies['reddit_session'], domain='.reddit.com')
 
